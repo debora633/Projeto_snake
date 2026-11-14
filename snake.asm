@@ -1,12 +1,12 @@
 .data
-    # display 512x512 e celula 16x16, temos 32 x 32 = 1024 celulas.
-    # 1024 celulas * 4 bytes = 4096 bytes 
-    display_buffer: .space 4096
+	# display 512x512 e celula 16x16, temos 32 x 32 = 1024 celulas.
+	# 1024 celulas * 4 bytes = 4096 bytes
+	display_buffer: .space 4096
 
-    COR_FUNDO:      .word 0x00FFFFFF    # Branco
-    COR_COBRA:      .word 0x004061fc    # Azul
-    COR_COMIDA:     .word 0x004AB34B    # Verde
-
+	COR_FUNDO:      .word 0x00FFFFFF    # Branco
+	COR_COBRA:      .word 0x004061fc    # Azul
+	COR_COMIDA:     .word 0x004AB34B    # Verde
+	
     # vetores para guardar as coordenadas X e Y de cada parte da cobra 
     cobra_x:        .space 4096
     cobra_y:        .space 4096

@@ -15,6 +15,10 @@
     dir_x:          .word 1             # Direcao inicial: 1 = direita, -1 = esquerda, 0 = parado
     dir_y:          .word 0             # Direcao inicial: 1 = baixo, -1 = cima, 0 = parado
 
+    # posicao da comida na grade
+    comida_x:       .word 0
+    comida_y:       .word 0
+
 .text
 .globl main
 
@@ -32,6 +36,9 @@ main:
     li $a1, 0
     lw $a2, COR_COBRA
     jal desenhar_celula
+
+    # gera a primeira comida
+    jal gerar_comida
 
 game_loop:
     # pausa o jogo por 0,5 segundos
@@ -133,10 +140,37 @@ fim_teclado:
     jr $ra
 
 # atualiza o corpo da cobra, apaga a cauda antiga e desenha a nova cabeca
+# se comer, cresce 1 celula e gera nova comida
 atualizar_cobra:
-    addi $sp, $sp, -4
+    addi $sp, $sp, -16
     sw $ra, 0($sp)              # salva endereco de retorno na pilha
+    sw $s0, 4($sp)              # salva $s0, $s1 e $s2
+    sw $s1, 8($sp)
+    sw $s2, 12($sp)
 
+    # calcula a nova posicao da cabeca em $s0 (x) e $s1 (y)
+    lw $t0, cobra_x
+    lw $t1, dir_x
+    add $s0, $t0, $t1
+    lw $t0, cobra_y
+    lw $t1, dir_y
+    add $s1, $t0, $t1
+
+    # verifica se a cabeca chegou na comida ($s2 = 1 se comeu)
+    li $s2, 0
+    lw $t0, comida_x
+    bne $s0, $t0, apagar_cauda
+    lw $t0, comida_y
+    bne $s1, $t0, apagar_cauda
+
+    # comeu: aumenta o tamanho e nao apaga a cauda
+    li $s2, 1
+    lw $t0, tamanho
+    addi $t0, $t0, 1
+    sw $t0, tamanho
+    j deslocar_corpo
+
+apagar_cauda:
     # apaga a ultima celula da cauda antes de mover
     lw $t0, tamanho
     addi $t0, $t0, -1
@@ -153,7 +187,8 @@ atualizar_cobra:
     lw $a2, COR_FUNDO
     jal desenhar_celula
 
-    # desloca o corpo nos vetores de tras para frente 
+deslocar_corpo:
+    # desloca o corpo nos vetores de tras para frente
     lw $t0, tamanho
     addi $t0, $t0, -1
 
@@ -179,32 +214,86 @@ loop_corpo:
     j loop_corpo
 
 mover_cabeca:
-    # atualiza a posicao da cabeca somando a direcao atual
+    # grava a nova posicao da cabeca
     la $t0, cobra_x
-    lw $t1, 0($t0)
-    lw $t2, dir_x
-    add $t1, $t1, $t2
-    sw $t1, 0($t0)
-
-    la $t3, cobra_y
-    lw $t4, 0($t3)
-    lw $t5, dir_y
-    add $t4, $t4, $t5
-    sw $t4, 0($t3)
+    sw $s0, 0($t0)
+    la $t0, cobra_y
+    sw $s1, 0($t0)
 
     # nao desenha se sair dos limites da grade (0 a 31)
-    bltz $t1, fim_atualizar
-    bge $t1, 32, fim_atualizar
-    bltz $t4, fim_atualizar
-    bge $t4, 32, fim_atualizar
+    bltz $s0, fim_atualizar
+    bge $s0, 32, fim_atualizar
+    bltz $s1, fim_atualizar
+    bge $s1, 32, fim_atualizar
 
     # desenha a nova posicao da cabeca
-    move $a0, $t1
-    move $a1, $t4
+    move $a0, $s0
+    move $a1, $s1
     lw $a2, COR_COBRA
     jal desenhar_celula
 
+    # se comeu, gera nova comida
+    beq $s2, $zero, fim_atualizar
+    jal gerar_comida
+
 fim_atualizar:
+    lw $ra, 0($sp)              # restaura registradores da pilha
+    lw $s0, 4($sp)
+    lw $s1, 8($sp)
+    lw $s2, 12($sp)
+    addi $sp, $sp, 16
+    jr $ra
+
+# sorteia uma posicao livre e desenha a comida
+gerar_comida:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+sortear_posicao:
+    # sorteia x e y entre 0 e 31 (syscall 42)
+    li $v0, 42
+    li $a0, 0
+    li $a1, 32
+    syscall
+    move $t0, $a0               # x sorteado
+
+    li $v0, 42
+    li $a0, 0
+    li $a1, 32
+    syscall
+    move $t1, $a0               # y sorteado
+
+    # verifica se a posicao esta ocupada pela cobra
+    lw $t2, tamanho
+    li $t3, 0                   # indice i
+
+verificar_corpo:
+    beq $t3, $t2, posicao_livre
+
+    sll $t4, $t3, 2
+    la $t5, cobra_x
+    add $t5, $t5, $t4
+    lw $t6, 0($t5)
+    bne $t6, $t0, proxima_parte
+
+    la $t5, cobra_y
+    add $t5, $t5, $t4
+    lw $t6, 0($t5)
+    beq $t6, $t1, sortear_posicao # ocupada: sorteia de novo
+
+proxima_parte:
+    addi $t3, $t3, 1
+    j verificar_corpo
+
+posicao_livre:
+    # salva a posicao e desenha a comida
+    sw $t0, comida_x
+    sw $t1, comida_y
+    move $a0, $t0
+    move $a1, $t1
+    lw $a2, COR_COMIDA
+    jal desenhar_celula
+
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra

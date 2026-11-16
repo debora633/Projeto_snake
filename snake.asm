@@ -48,8 +48,9 @@ game_loop:
 
     jal ler_teclado             # verifica se alguma tecla WASD foi pressionada
     jal atualizar_cobra
+    bne $v0, $zero, fim_jogo    # $v0 = 1: bateu no proprio corpo
 
-    # verificacao das 4 bordas 
+    # verificacao das 4 bordas
     la $t0, cobra_x
     lw $t1, 0($t0)
     bltz $t1, fim_jogo
@@ -63,9 +64,10 @@ game_loop:
     j game_loop
 
 fim_jogo:
-    li $v0, 10
+    li $v0, 10                  # syscall 10: encerra o programa
     syscall
  
+# le uma tecla WASD (se houver) e atualiza a direcao da cobra
 ler_teclado:
     li $t0, 0xffff0000          # endereco de controle do teclado
     lw $t1, 0($t0)
@@ -141,6 +143,7 @@ fim_teclado:
 
 # atualiza o corpo da cobra, apaga a cauda antiga e desenha a nova cabeca
 # se comer, cresce 1 celula e gera nova comida
+# retorna $v0 = 1 se a cabeca bater no proprio corpo
 atualizar_cobra:
     addi $sp, $sp, -16
     sw $ra, 0($sp)              # salva endereco de retorno na pilha
@@ -190,27 +193,29 @@ apagar_cauda:
 deslocar_corpo:
     # desloca o corpo nos vetores de tras para frente
     lw $t0, tamanho
-    addi $t0, $t0, -1
+    addi $t0, $t0, -1           # i = tamanho - 1 (cauda)
 
 loop_corpo:
     blez $t0, mover_cabeca
 
-    sll $t1, $t0, 2
-    addi $t2, $t1, -4
+    sll $t1, $t0, 2             # deslocamento de i (i * 4)
+    addi $t2, $t1, -4           # deslocamento de i-1
 
+    # cobra_x[i] = cobra_x[i-1]
     la $t3, cobra_x
     add $t4, $t3, $t2
     lw $t5, 0($t4)
     add $t4, $t3, $t1
     sw $t5, 0($t4)
 
+    # cobra_y[i] = cobra_y[i-1]
     la $t3, cobra_y
     add $t4, $t3, $t2
     lw $t5, 0($t4)
     add $t4, $t3, $t1
     sw $t5, 0($t4)
 
-    addi $t0, $t0, -1
+    addi $t0, $t0, -1           # i--
     j loop_corpo
 
 mover_cabeca:
@@ -221,11 +226,34 @@ mover_cabeca:
     sw $s1, 0($t0)
 
     # nao desenha se sair dos limites da grade (0 a 31)
-    bltz $s0, fim_atualizar
-    bge $s0, 32, fim_atualizar
-    bltz $s1, fim_atualizar
-    bge $s1, 32, fim_atualizar
+    bltz $s0, sem_colisao
+    bge $s0, 32, sem_colisao
+    bltz $s1, sem_colisao
+    bge $s1, 32, sem_colisao
 
+    # verifica se a cabeca bateu no proprio corpo (partes 1 ate tamanho-1)
+    lw $t0, tamanho
+    li $t1, 1                   # indice i (pula a cabeca)
+
+loop_colisao:
+    bge $t1, $t0, desenhar_cabeca
+
+    sll $t2, $t1, 2
+    la $t3, cobra_x
+    add $t3, $t3, $t2
+    lw $t4, 0($t3)
+    bne $t4, $s0, proxima_parte_corpo
+
+    la $t3, cobra_y
+    add $t3, $t3, $t2
+    lw $t4, 0($t3)
+    beq $t4, $s1, colidiu_corpo # mesma posicao: bateu
+
+proxima_parte_corpo:
+    addi $t1, $t1, 1
+    j loop_colisao
+
+desenhar_cabeca:
     # desenha a nova posicao da cabeca
     move $a0, $s0
     move $a1, $s1
@@ -233,8 +261,15 @@ mover_cabeca:
     jal desenhar_celula
 
     # se comeu, gera nova comida
-    beq $s2, $zero, fim_atualizar
+    beq $s2, $zero, sem_colisao
     jal gerar_comida
+
+sem_colisao:
+    li $v0, 0                   # retorna 0: nao bateu no corpo
+    j fim_atualizar
+
+colidiu_corpo:
+    li $v0, 1                   # retorna 1: bateu no corpo
 
 fim_atualizar:
     lw $ra, 0($sp)              # restaura registradores da pilha
@@ -300,8 +335,8 @@ posicao_livre:
 
 # pinta todas as 1024 celulas com a cor de fundo
 limpar_tela:
-    li $t0, 0x10010000
-    li $t1, 1024
+    li $t0, 0x10010000          # endereco base do bitmap display
+    li $t1, 1024                # contador de celulas
     lw $t2, COR_FUNDO
 
 loop_limpar:
@@ -315,12 +350,14 @@ fim_limpar:
     jr $ra
 
 # pinta uma celula com a cor 
+# $a0 = x, $a1 = y, $a2 = cor
+# endereco = 0x10010000 + (y * 32 + x) * 4
 desenhar_celula:
-    sll $t0, $a1, 5
-    add $t0, $t0, $a0
-    sll $t0, $t0, 2
+    sll $t0, $a1, 5             # y * 32
+    add $t0, $t0, $a0           # + x
+    sll $t0, $t0, 2             # * 4 bytes
 
-    li $t1, 0x10010000
+    li $t1, 0x10010000          # endereco base do bitmap display
     add $t1, $t1, $t0
-    sw $a2, 0($t1)
+    sw $a2, 0($t1)              # escreve a cor na memoria do display
     jr $ra

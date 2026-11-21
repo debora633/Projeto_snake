@@ -89,11 +89,8 @@ game_loop:
     addi $t0, $t0, 1
     sw $t0, score
     
-    # mantem a comida sempre desenhada na tela
-    lw $a0, comida_x
-    lw $a1, comida_y
-    lw $a2, COR_COMIDA
-    jal desenhar_celula
+    # redesenha fundo branco, corpo inteiro da cobra e comida a cada ciclo
+    jal renderizar_quadro
 
     j game_loop
 
@@ -388,6 +385,50 @@ posicao_livre:
 
     lw $ra, 0($sp)
     addi $sp, $sp, 4
+    jr $ra
+    
+renderizar_quadro:
+    addi $sp, $sp, -12
+    sw $ra, 0($sp)
+    sw $s0, 4($sp)
+    sw $s1, 8($sp)
+
+    # 1. preenche todas as 1024 celulas com a cor de fundo
+    jal limpar_tela
+
+    # 2. percorre os vetores cobra_x e cobra_y para desenhar toda a cobra
+    lw $s0, tamanho
+    li $s1, 0                   # indice i = 0
+
+loop_renderizar_cobra:
+    bge $s1, $s0, renderizar_comida
+
+    sll $t0, $s1, 2             # deslocamento i * 4
+    la $t1, cobra_x
+    add $t1, $t1, $t0
+    lw $a0, 0($t1)              # $a0 = cobra_x[i]
+
+    la $t1, cobra_y
+    add $t1, $t1, $t0
+    lw $a1, 0($t1)              # $a1 = cobra_y[i]
+
+    lw $a2, COR_COBRA
+    jal desenhar_celula
+
+    addi $s1, $s1, 1
+    j loop_renderizar_cobra
+
+renderizar_comida:
+    # 3. desenha a comida na posicao atual
+    lw $a0, comida_x
+    lw $a1, comida_y
+    lw $a2, COR_COMIDA
+    jal desenhar_celula
+
+    lw $ra, 0($sp)
+    lw $s0, 4($sp)
+    lw $s1, 8($sp)
+    addi $sp, $sp, 12
     jr $ra
 
 # pinta todas as 1024 celulas com a cor de fundo

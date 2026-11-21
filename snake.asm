@@ -88,6 +88,12 @@ game_loop:
     lw $t0, score
     addi $t0, $t0, 1
     sw $t0, score
+    
+    # mantem a comida sempre desenhada na tela
+    lw $a0, comida_x
+    lw $a1, comida_y
+    lw $a2, COR_COMIDA
+    jal desenhar_celula
 
     j game_loop
 

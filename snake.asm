@@ -1,3 +1,14 @@
+# ==============================================================================
+# Configuracao do Bitmap Display (Tools -> Bitmap Display):
+#   - Unit Width in Pixels:  16
+#   - Unit Height in Pixels: 16
+#   - Display Width in Pixels:  512
+#   - Display Height in Pixels: 512
+#   - Base address for display: 0x10010000 (static data)
+# Configuracao de Entrada (Tools -> Keyboard and Display MMIO Simulator):
+#   - Clicar em "Connect to MIPS" antes de iniciar e usar teclas W, A, S, D.
+# ==============================================================================
+
 .data
 	# display 512x512 e celula 16x16, temos 32 x 32 = 1024 celulas.
 	# 1024 celulas * 4 bytes = 4096 bytes
@@ -18,6 +29,11 @@
     # posicao da comida na grade
     comida_x:       .word 0
     comida_y:       .word 0
+
+    # pontuacao e mensagens de encerramento
+    score:          .word 0
+    msg_fim:        .asciiz "\nGAME OVER! Pontuacao final: "
+    msg_quebra:     .asciiz "\n"
 
 .text
 .globl main
@@ -60,10 +76,34 @@ game_loop:
     lw $t1, 0($t0)
     bltz $t1, fim_jogo
     bge $t1, 32, fim_jogo
+    
+    # sobrevivencia: +1 ponto a cada 0,5s validos
+    lw $t0, score
+    addi $t0, $t0, 1
+    sw $t0, score
 
     j game_loop
 
 fim_jogo:
+    # exibe pontuacao no console Run I/O
+    li $v0, 4
+    la $a0, msg_fim
+    syscall
+
+    li $v0, 1
+    lw $a0, score
+    syscall
+
+    li $v0, 4
+    la $a0, msg_quebra
+    syscall
+
+    # exibe caixa de dialogo com a pontuacao final
+    li $v0, 56
+    la $a0, msg_fim
+    lw $a1, score
+    syscall
+
     li $v0, 10                  # syscall 10: encerra o programa
     syscall
  
@@ -171,6 +211,10 @@ atualizar_cobra:
     lw $t0, tamanho
     addi $t0, $t0, 1
     sw $t0, tamanho
+    
+    lw $t0, score
+    addi $t0, $t0, 5
+    sw $t0, score
     j deslocar_corpo
 
 apagar_cauda:

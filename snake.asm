@@ -40,7 +40,14 @@
 
 main:
     jal limpar_tela
-
+    
+    # reinicializa o estado do jogo na RAM (garante funcionamento do botao Reset)
+    li $t0, 1
+    sw $t0, tamanho             # volta ao tamanho inicial 1
+    sw $t0, dir_x               # volta a direcao inicial: direita (1)
+    sw $zero, dir_y             # zera deslocamento vertical
+    sw $zero, score             # zera a pontuacao
+    
     # a cabeca na posicao inicial (0, 0)
     la $t0, cobra_x
     sw $zero, 0($t0)
